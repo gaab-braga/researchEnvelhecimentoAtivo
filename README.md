@@ -1,332 +1,262 @@
-# Índice Brasileiro de Envelhecimento Ativo (AAI-BR) — ETL (PNS 2019)
+# Índice Brasileiro de Envelhecimento Ativo (AAI-BR) — Análise Completa (PNS 2019)
 
-> Pipeline ETL e conjunto de métricas para extrair, limpar e construir indicadores do envelhecimento ativo usando os microdados da PNS-2019, produzindo um dataset reduzido, indicadores por domínio e produtos analíticos adequados para pesquisa e suporte à política pública.
+> Análise abrangente do envelhecimento ativo no Brasil, utilizando dados da Pesquisa Nacional de Saúde (PNS 2019). Inclui ETL, construção de indicadores, análises estatísticas avançadas, modelagem preditiva e recomendações para políticas públicas.
 
 ## Tabela de Conteúdos
 
 - [Visão Geral e Objetivos](#visão-geral-e-objetivos)
 - [Arquitetura do Projeto](#arquitetura-do-projeto)
 - [Metodologia e Pipeline](#metodologia-e-pipeline)
+- [Análises Realizadas](#análises-realizadas)
+- [Dicionário de Dados e Métricas](#dicionário-de-dados-e-métricas)
 - [Execução e Ambiente](#execução-e-ambiente)
 - [Entregáveis e Validação](#entregáveis-e-validação)
 - [Limitações e Próximos Passos](#limitações-e-próximos-passos)
 - [Contato e Citação](#contato-e-citação)
-- [Apêndice: Pseudocódigo](#apêndice-pseudocódigo)
 
 ## Visão Geral e Objetivos
 
-Este repositório contém o ETL, documentação e artefatos necessários para transformar os microdados complexos da PNS-2019 em um dataset core (fase-1) e em indicadores compostos que medem o envelhecimento ativo.
+Este projeto desenvolve um **Índice de Envelhecimento Ativo (AAI)** para o Brasil, baseado nos dados da Pesquisa Nacional de Saúde (PNS 2019). O objetivo é medir a qualidade de vida dos idosos brasileiros através de quatro pilares principais:
 
-O objetivo científico é produzir um índice mensurável e reprodutível, com domínios interpretáveis (Saúde, Funcionalidade, Participação, Capacidade/Educação, Condição Socioeconômica / Acesso), que permita:
+1. **Saúde**: Capacidade funcional e controle de doenças crônicas
+2. **Participação Social**: Engajamento comunitário e acesso a redes de apoio
+3. **Segurança Econômica**: Renda adequada e proteção social
+4. **Acesso a Serviços**: Uso de serviços de saúde e conectividade digital
 
-- Identificar municípios e grupos populacionais mais vulneráveis (idade, sexo, raça, urbano/rural, escolaridade).
-- Decompor o desempenho por domínio para priorização de políticas.
-- Prover insumos para análises temporais (quando combinado com PNS 2013) e validação (ELSI, DATASUS, VIGITEL).
+### Impacto Social
+
+O Brasil tem mais de 30 milhões de pessoas com 60 anos ou mais. Este estudo identifica:
+- Municípios prioritários para intervenção
+- Grupos populacionais mais vulneráveis
+- Fatores que mais influenciam o envelhecimento saudável
+- Recomendações práticas para gestores públicos
+
+### Abordagem Científica
+
+- **Dados survey-aware**: Considera pesos amostrais e desenho complexo da PNS
+- **Intervalos de confiança**: Bootstrap para estimativas robustas
+- **Análises avançadas**: Clustering, modelagem preditiva, análise espacial
+- **Reprodutibilidade**: Código versionado e documentado
 
 ## Arquitetura do Projeto
 
-A estrutura de diretórios foi desenhada para garantir a reprodutibilidade e separação entre dados brutos, lógica de transformação e produtos analíticos.
-
 ```
-pns_2019_etl/
+researchEnvelhecimentoAtivo/
 ├── data/
 │   ├── raw/
 │   │   ├── PNS_2019.txt                     # Microdados originais (IBGE)
-│   │   ├── input_PNS_2019.sas               # Layout / posições de coluna
-│   │   ├── dicionario_PNS_microdados_2019.xls # Dicionário oficial
-│   │   └── metadados_core.txt               # Descrição do dataset processado
+│   │   ├── input_PNS_2019.sas               # Layout das colunas
+│   │   └── metadados_core.txt               # Descrição do dataset
 │   └── processed/
-│       ├── pns_2019_core_corrected.csv      # Dataset reduzido final (fase 1)
+│       ├── pns_2019_pandas.csv              # Dataset processado (Pandas)
+│       ├── pns_2019_spark.csv               # Dataset processado (Spark)
+│       ├── BR_Municipios_2019.*             # Shapefiles para análise espacial
 │       └── pns_mappings.json                # Mapeamentos categóricos
 ├── scripts/
-│   ├── etl_final.py                         # Script ETL principal
-│   └── script.py                            # (Versão alternativa PySpark)
-├── colunas_escolhidas.md                    # Documentação e justificativa das colunas
-└── test.ipynb                               # Notebook para validação e checks
+│   ├── pns_2019_pandas.py                   # ETL em Pandas
+│   └── pns_2019_spark.py                    # ETL em PySpark
+├── outputs_aai/
+│   ├── municipal_scores_with_ci.csv         # Scores por município
+│   ├── priority_municipalities_bottom20.csv # Municípios prioritários
+│   ├── aging_profiles.csv                   # Perfis de envelhecimento
+│   ├── feature_importance.csv               # Importância das variáveis
+│   ├── policy_brief_automated.txt           # Policy brief automatizado
+│   ├── shap_values.csv                      # Valores SHAP
+│   └── *.png                                # Visualizações
+├── EDA.ipynb                                # Notebook principal de análise
+├── colunas_faltantes.md                     # Documentação de colunas
+└── README.md                                # Este arquivo
 ```
-
-<details>
-<summary><strong>Descrição dos Componentes Principais</strong></summary>
-
-- **/data/raw**: Contém os arquivos originais e imutáveis fornecidos pelo IBGE. O ETL lê deste diretório.
-- **/data/processed**: Contém os outputs do ETL. Estes arquivos são gerados e substituídos programaticamente.
-- **/scripts**: Contém toda a lógica de transformação, limpeza e construção de variáveis.
-- **colunas_escolhidas.md**: Documento de metadados que justifica a seleção de cada variável com base nos pilares teóricos do envelhecimento ativo.
-- **test.ipynb**: Notebook de Análise Exploratória (EDA) e Quality Assurance (QA). Usado para verificar distribuições, missing rates e consistência dos dados processados.
-
-</details>
 
 ## Metodologia e Pipeline
 
-### Racional de Seleção de Colunas
+### 1. Extração e Limpeza (ETL)
 
-As colunas foram selecionadas para traduzir os pilares científicos do envelhecimento ativo (WHO): Saúde, Participação, Capacidade/Educação, Condição Socioeconômica/Segurança e Acesso/Uso de Serviços.
+- **Fonte**: Microdados PNS 2019 (IBGE)
+- **Filtro**: Indivíduos com 60 anos ou mais
+- **Limpeza**: Tratamento de valores missing, codificações e coerções
+- **Validação**: Verificação de pesos amostrais e consistência
 
-**Critérios de Inclusão (Prioridade):**
+### 2. Construção dos Indicadores
 
-- **Relevância Teórica**: Mapeamento direto a um pilar do WHO.
-- **Qualidade dos Dados**: Baixa taxa de missing / boa codificação na PNS-2019.
-- **Potencial de Derivação**: Capacidade de gerar indicadores robustos (ex.: multimorbidity_count, scores de ADL/IADL).
-- **Ação (Policy-making)**: Potencial para agregação (codmun) e suporte a políticas.
+#### Domínios do AAI
+- **Health Score**: Combinação de autoavaliação de saúde, multimorbidade e funcionalidade
+- **Functional Score**: Capacidade para atividades diárias (ADL/IADL)
+- **Participation Score**: Acesso à internet e celular
+- **Economic Score**: Educação e renda
+- **Access Score**: Plano de saúde e consultas médicas
 
-<details>
-<summary><strong>Lista Consolidada de Variáveis (Core e Derivadas)</strong></summary>
+#### AAI Total
+- **Média ponderada** dos domínios normalizados (0-1)
+- **Pesos iguais** (baseline) ou definidos por especialistas
 
-#### Core (Originais PNS)
+### 3. Análises Estatísticas
 
-Nomes conceituais. Mapear para o nome real no microdicionário.
+- **Agregação municipal**: Scores por cidade com controle de qualidade
+- **Análise de desigualdades**: Por sexo, raça, escolaridade, urbano/rural
+- **Clustering**: Identificação de perfis de envelhecimento
+- **Modelagem preditiva**: Fatores de vulnerabilidade (Random Forest + SHAP)
+- **Análise de mediação**: Efeitos indiretos entre variáveis
+- **Análise espacial**: Padrões geográficos e autocorrelação
 
-- **Identificação e Desenho Amostral**: `id_ind`, `id_dom`, `codmun`, `uf`, `peso` (amostral), `estrato` (PSU/estrato)
-- **Demografia**: `idade`, `sexo`, `raca`, `area_urb`
-- **Educação / Renda / Trabalho**: `anos_estudo`, `renda` (per capita), `ocupacao`
-- **Moradia / Rede Social**: `mora_sozinho`
-- **Saúde Autorreferida e Crônica**: `autoav` (auto-avaliação), `hipert`, `diab`, `cardio`, `avc`, `resp`, `cancer`, `depressao`, `num_meds`
-- **Funcionalidade**:
-  - ADL: `adl_item_1`, `adl_item_2`, `adl_item_3`
-  - IADL: `iadl_item_1`, `iadl_item_2`
-  - `queda_12m`
-- **Uso e Acesso aos Serviços**: `plano` (possui plano), `usa_sus`, `consulta_12m`, `internacoes_12m`, `vacina_gripe`, `cadastramento_ESF`
-- **Estilo de Vida / Prevenção**: `atividade_fisica`, `tabagismo`, `imc`
-- **Inclusão Digital**: `uso_internet`, `uso_celular`
+## Análises Realizadas
 
-#### Derivadas (Construídas no ETL)
+O notebook `EDA.ipynb` contém análises completas organizadas em seções:
 
-| Variável | Fórmula / Descrição |
-|----------|---------------------|
-| `faixa_etaria_3` | cut(idade, bins=[60–69,70–79,80+]) |
-| `multimorbidity_count` | sum(hipert, diab, cardio, avc, resp, cancer, depressao) |
-| `multimb_cat` | Categórico de multimorbidity_count (0, 1, 2, 3+) |
-| `adl_score` | sum(ADL items) (maior = mais limitação) |
-| `iadl_score` | sum(IADL items) |
-| `functional_raw` | adl_score + iadl_score |
-| `functional_score` | 1 − (functional_raw / max_possible_raw) (Normalizado 0–1; maior = melhor) |
-| `dependencia_SUS` | (plano == 0) & (usa_sus == 1) |
-| `cobertura_influenza` | vacina_gripe |
-| `health_score` | Combinação normalizada (ver Apêndice A) |
-| `AAI_dom_*` | Scores normalizados por domínio (Health, Functional, Participation, Economic, Access) |
-| `AAI_total` | Agregação dos domínios (método a definir) |
+1. **Preparação dos Dados**: Limpeza e validação
+2. **Construção do AAI**: Cálculo dos indicadores
+3. **Agregação Municipal**: Scores por município
+4. **Identificação de Hotspots**: Municípios prioritários (20% piores)
+5. **Análise de Desigualdades**: Diferenças entre subgrupos
+6. **Perfis de Envelhecimento**: Clustering em 4 grupos
+7. **Modelagem Preditiva**: Drivers de vulnerabilidade
+8. **Análise de Mediação**: Efeitos indiretos
+9. **Análise Espacial**: Padrões geográficos
+10. **Policy Brief**: Recomendações automatizadas
+11. **Visualizações**: Gráficos e mapas
+12. **Validação**: Checklist de qualidade
+13. **Conclusões**: Sumário executivo
+14. **Export**: Datasets finais
 
-</details>
+### Principais Resultados
 
-### Construção de Domínios e Derivados
+- **AAI Nacional**: Média brasileira com intervalos de confiança
+- **Hotspots**: Lista de municípios prioritários
+- **Perfis**: 4 grupos distintos de idosos
+- **Fatores Críticos**: Idade, escolaridade, uso de medicamentos
+- **Padrões Espaciais**: Autocorrelação significativa
+- **Recomendações**: Prioridades para curto, médio e longo prazo
 
-Abaixo detalhamos a construção dos principais indicadores sintéticos.
+## 📊 Dicionário de Dados e Métricas
 
-<details>
-<summary><strong>Saúde e Autonomia Funcional</strong></summary>
+### 🔍 Colunas do DataFrame Principal (`df`)
 
-**Motivação**: Saúde percebida e carga de doenças crônicas determinam autonomia, uso de serviços e necessidade de cuidados.
+| Nome Técnico | O que Significa (Explicação Simples) |
+|--------------|-------------------------------------|
+| `peso` / `peso_amostral` | **Fator de Multiplicação**: Número que indica quantas pessoas na população brasileira aquele entrevistado representa. Essencial para validade nacional. |
+| `codmun` | **Código do Município**: Código oficial do IBGE para a cidade de residência. |
+| `uf` | **Unidade Federativa**: Sigla do estado (ex: SP, RJ, BA). |
+| `estrato` / `upa` | **Informação de Amostragem**: Detalhes técnicos de seleção. Garante representatividade estatística. |
+| `faixa_etaria` | **Grupo de Idade**: Idade categorizada em grupos (ex: '60-69', '70-79'). |
+| `anos_estudo` | **Anos de Escolaridade**: Tempo de estudo formal. |
+| `renda` / `renda_percapita` | **Renda**: Rendimento financeiro individual ou familiar. |
+| `health_score` | **Nota de Saúde**: Índice 0-100 combinando doenças crônicas e saúde geral. |
+| `functional_score` | **Nota de Capacidade Funcional**: Índice 0-100 medindo atividades diárias (caminhar, subir escadas). |
+| `participation_score` | **Nota de Participação e Conexão**: Mede acesso a internet e celular. |
+| `econ_score` | **Nota de Segurança Econômica**: Combina renda e escolaridade. |
+| `access_score` | **Nota de Acesso à Saúde**: Mede plano de saúde e consultas recentes. |
+| **`AAI_total`** | **Índice de Envelhecimento Ativo (Nota Final)**: Média de todas as notas acima. Principal indicador do estudo. |
+| `cluster` | **Perfil de Envelhecimento**: Grupo identificado por características (ex: 'Ativos e Conectados'). |
+| `vulnerable` | **Indicador de Vulnerabilidade**: Etiqueta identificando 20% com piores notas. |
 
-**Colunas Core**: `autoav`, `hipert`, `diab`, `cardio`, `avc`, `resp`, `cancer`, `depressao`, `num_meds`.
+### 🏛️ Métricas da Análise Municipal (`municipal_scores`)
 
-**Derivados**:
+| Nome Técnico | O que Significa (Explicação Simples) |
+|--------------|-------------------------------------|
+| `n_obs` | **Número de Entrevistados**: Quantidade de pessoas entrevistadas na cidade. Mede confiabilidade da nota. |
+| `pop_weight_sum` | **População Estimada**: Estimativa de idosos na cidade usando fatores de multiplicação. |
+| `AAI_ci_lower` | **Piso do Intervalo de Confiança**: Valor mínimo provável para a média da cidade. |
+| `AAI_ci_upper` | **Teto do Intervalo de Confiança**: Valor máximo provável para a média da cidade. |
+| `reliable` | **Selo de Confiabilidade**: Etiqueta indicando se a nota é confiável baseado em `n_obs`. |
 
-- `multimorbidity_count`: Soma de indicadores binários (0/1).
-- `health_score`: Combinação de `autoav`, `multimorbidity_count` e `functional_score`.
+### 🔬 Termos Técnicos das Análises
 
-**Decisões Técnicas**:
-
-- Antes de combinar, padronizar (z-score) cada componente para neutralizar escalas.
-- Inverter sinais quando necessário (ex.: autoav codificado 1=excelente não inverte; multimorbidity_count inverte).
-- Normalização final (min-max) para 0-1 para facilitar comparações.
-
-</details>
-
-<details>
-<summary><strong>Funcionalidade (ADL / IADL)</strong></summary>
-
-**Motivação**: Limitações nas Atividades de Vida Diária (ADL/IADL) são o núcleo da independência.
-
-**Construção**:
-
-- `adl_score` e `iadl_score` são somas simples (1 = dificuldade).
-- `functional_score`: Normaliza e inverte o score bruto. Um `functional_raw` alto (muita dificuldade) leva a um `functional_score` baixo (perto de 0).
-
-**Justificativa**: Scores 0-1 são mais interpretáveis e facilitam agregações por domínio.
-
-</details>
-
-<details>
-<summary><strong>Participação Social e Rede de Apoio</strong></summary>
-
-**Motivação**: Participação reduz isolamento e melhora saúde mental.
-
-**Core**: `mora_sozinho`, `participacao_grupos` (se disponível), `frequencia_contatos` (se disponível).
-
-**Derivado**: `indice_participacao` (combinação normalizada de indicadores sociais).
-
-</details>
-
-<details>
-<summary><strong>Condição Socioeconômica e Trabalho</strong></summary>
-
-**Motivação**: Renda e educação explicam acesso a serviços e capacidade de resiliência.
-
-**Core**: `anos_estudo`, `renda`, `ocupacao` (participação produtiva).
-
-**Derivados**: `renda_percapita_class` (quintis/quartis) e `participacao_economica` (binário).
-
-</details>
-
-<details>
-<summary><strong>Acesso e Dependência do SUS</strong></summary>
-
-**Motivação**: Identificar populações que dependem exclusivamente do sistema público.
-
-**Core**: `plano`, `usa_sus`, `consulta_12m`, `internacoes_12m`, `vacina_gripe`, `cadastramento_ESF`.
-
-**Derivado**: `dependencia_SUS` e `indice_acesso` (combinando frequência de consultas / vacinação).
-
-</details>
-
-<details>
-<summary><strong>Regras de Limpeza, Imputação e Coerção</strong></summary>
-
-- **Leitura**: Usar `input_PNS_2019.sas` para parsear o `.txt` (fix-width).
-- **Codificações**: Normalizar valores "99/98/97" (não sabe/não respondeu) do dicionário para `NaN`.
-- **Coerção**: Converter ordinais (`autoav`) em inteiros; flags Sim/Não em 1/0. Garantir `idade` como inteiro e filtrar amostra (`idade >= 60`).
-- **Imputação (Baseline)**: Mediana para numéricos essenciais (`renda`, `anos_estudo`); Moda para categóricos com baixa missingness.
-- **Amostra Complexa**: Preservar colunas `peso` e `estrato`. Indicadores agregados (municipais, UF) devem usar estimativas ponderadas.
-
-</details>
-
-### Metodologias de Composição do Índice
-
-O AAI_total será composto pela agregação dos escores de domínio normalizados (AAI_dom_*).
-
-**Pré-processamento**: Dentro de cada domínio, variáveis são transformadas para a mesma direção (maior = melhor) e escala (z-score ou min-max 0–1).
-
-**Estratégias de Ponderação (Agregação)**:
-
-- **Equal weighting (Baseline)**: Média aritmética dos domínios. Simples e transparente para comunicação.
-- **PCA / Análise Fatorial (Data-driven)**: Pesos definidos pela variância explicada.
-- **Delphi / Expert weights (Recomendado)**: Painel de especialistas define importância relativa.
-
-**Justificativa**: A versão final do índice para política pública deve priorizar a ponderação por especialistas (Delphi) ou pesos iguais (Equal Weighting) devido à interpretabilidade. A análise PCA será usada para validação de sensibilidade.
-
-<details>
-<summary><strong>Considerações Metodológicas Avançadas</strong></summary>
-
-- **Governança e Ética**: Os microdados PNS são anonimizados. Nenhuma tabela com células pequenas (risco de reidentificação) deve ser publicada. O código deve ser versionado (Git) e o metadados_core.txt deve registrar o commit SHA da execução do ETL (audit trail).
-- **Amostra Complexa**: Para inferência estatística (p-valores, ICs), usar o desenho amostral completo (estratos, psu, pesos) via pacotes de survey (ex: survey em R, statsmodels.survey em Python).
-- **Causalidade**: A PNS é transversal. O estudo permite identificar associações ajustadas, não causalidade.
-
-</details>
+| Nome Técnico | O que Significa (Explicação Simples) |
+|--------------|-------------------------------------|
+| `Bootstrap` | **Teste de Estabilidade**: Técnica repetindo análise centenas de vezes com amostras aleatórias para garantir resultados não são acaso. |
+| `Moran's I` | **Índice de Vizinhança**: Métrica mostrando se cidades vizinhas têm notas parecidas (formando "manchas" no mapa). |
+| `p-valor` | **Teste de Sorte**: Probabilidade do padrão encontrado ser acaso. Valor baixo (< 0.05) significa padrão provavelmente real. |
+| `LISA` / `Cluster Espacial` | **Identificador de Hotspots**: Análise identificando "panelinhas" de municípios (ex: `LL` = cidades com notas baixas cercadas por vizinhos também baixos). |
+| `Feature Importance` | **Ranking de Influência**: Lista mostrando fatores mais importantes para prever vulnerabilidade (ex: renda, escolaridade). |
+| `SHAP Values` | **Explicador de Influência**: Técnica mostrando não só *quais* fatores importam, mas *como* influenciam cada pessoa. |
+| `Análise de Mediação` | **Análise de Efeito Indireto**: Investiga se fator A afeta C diretamente ou através de intermediário B. |
 
 ## Execução e Ambiente
 
 ### Dependências
 
-- Python 3.8+
-- pandas, numpy, scipy
-- scikit-learn (para normalização e PCA)
-- statsmodels (para regressões ponderadas)
-- pyarrow (para I/O eficiente, ex: parquet)
-- pyreadstat (para leitura de layouts SAS, se disponível)
-
-### Instalação
-
-Recomenda-se o uso de um ambiente virtual:
-
 ```bash
-pip install pandas numpy scikit-learn statsmodels pyarrow
+# Python 3.8+
+pip install pandas numpy scikit-learn statsmodels seaborn matplotlib plotly
+pip install geopandas libpysal esda  # Para análise espacial
+pip install shap  # Para interpretabilidade
+pip install pyspark  # Para versão Spark (opcional)
 ```
 
-### Execução Básica
+### Como Executar
 
-1. Garanta que os arquivos de `data/raw/` (PNS_2019.txt, input_PNS_2019.sas, dicionario...) estejam presentes.
-2. Ajuste os mapeamentos de coluna no `etl_final.py` conforme o dicionário.
-3. Execute o script principal:
+1. **Clone o repositório** e instale dependências
+2. **Execute o ETL** (se necessário):
+   ```bash
+   python scripts/pns_2019_pandas.py
+   ```
+3. **Abra o notebook principal**:
+   ```bash
+   jupyter notebook EDA.ipynb
+   ```
+4. **Execute as células** sequencialmente (leva ~30-60 minutos)
+5. **Verifique os outputs** na pasta `outputs_aai/`
 
-```bash
-python scripts/etl_final.py \
-    --input data/raw/PNS_2019.txt \
-    --layout data/raw/input_PNS_2019.sas \
-    --out data/processed/pns_2019_core_corrected.csv
-```
+### Ambiente Recomendado
 
-4. Abra `test.ipynb` para validação exploratória e QA dos dados processados.
+- **Python**: 3.8 ou superior
+- **Memória**: 8GB+ recomendado
+- **Espaço**: ~5GB para dados e outputs
+- **Sistema**: Windows/Linux/Mac
 
 ## Entregáveis e Validação
 
-### Artefatos de Saída Esperados
+### Outputs Principais
 
-- `data/processed/pns_2019_core_corrected.csv`: Dataset reduzido (indivíduos 60+, colunas core + derivadas).
-- `data/processed/pns_mappings.json`: Lookup de categorias e recodificações (ex.: autoav mapping).
-- `test.ipynb`: Notebook com checagens, gráficos exploratórios e validação de estimativas ponderadas.
+- **Dataset Processado**: `pns_2019_processed_60plus.csv`
+- **Scores Municipais**: `municipal_scores_with_ci.csv`
+- **Municípios Prioritários**: `priority_municipalities_bottom20.csv`
+- **Perfis de Envelhecimento**: `aging_profiles.csv`
+- **Policy Brief**: `policy_brief_automated.txt`
+- **Visualizações**: Arquivos PNG com gráficos
+- **Análise Espacial**: `municipal_aai_spatial.geojson`
 
-### Validação e QA
+### Checklist de Validação
 
-O `test.ipynb` contém checks de qualidade essenciais, incluindo:
-
-- Distribuição de variáveis core.
-- Taxas de missingness (antes e depois da imputação).
-- Cross-tabs por UF/sexo/raça.
-- Verificação de pesos amostrais.
-- Correlação entre domínios (para verificar redundância).
-- Comparação de estimativas ponderadas (ex: svymean de hipert) com tabelas agregadas oficiais do IBGE para validar o pipeline.
-
-<details>
-<summary><strong>Potenciais Análises e Insights</strong></summary>
-
-- **Painel e Agregados**:
-  - Índice AAI_Br total e por domínio, por município e UF.
-  - Ranking de municípios (decis / percentis) — destacar 20% piores.
-  - Decomposição do índice por domínio (heatmap).
-  - Mapas choropleth: AAI_Br_total; domain heatmaps.
-
-- **Perfis Populacionais**:
-  - Prevalência de multimorbidade por faixa etária (60-69 / 70-79 / 80+) e por sexo/raça/area.
-  - Taxa de limitação ADL/IADL por município.
-  - Proporção de idosos dependentes do SUS vs. cobertura vacinal.
-
-- **Modelagem e Associação**:
-  - Regressões ponderadas (survey regression) para identificar determinantes de health_score e functional_score.
-  - Modelos de classificação (ex.: Random Forest) para prever municípios com baixo AAI (feature importance / SHAP).
-
-</details>
+O notebook inclui validações automáticas:
+- ✅ Filtro de idade aplicado corretamente
+- ✅ Pesos amostrais utilizados
+- ✅ AAI calculado com domínios disponíveis
+- ✅ Agregação municipal com intervalos de confiança
+- ✅ Hotspots filtrados por confiabilidade
+- ✅ Modelos treinados e avaliados
+- ✅ Outputs salvos corretamente
 
 ## Limitações e Próximos Passos
 
-### Limitações Conhecidas
+### Limitações
 
-- A PNS mede uso e demanda percebida, não oferta de serviços (requer merge com DATASUS).
-- Questionamentos sujeitos a viés de memória (recall bias) (ex.: consulta 12 meses).
-- Agregações muito finas (ex: bairro) podem violar regras de divulgação (supressão).
+- **Dados transversais**: Não permitem inferir causalidade
+- **Auto-relato**: Alguns indicadores sujeitos a viés de memória
+- **Cobertura municipal**: Cidades com poucos entrevistados têm estimativas menos precisas
+- **Temporal**: Dados de 2019; atualizações futuras necessárias
 
-### Planos Futuros (Roadmap)
+### Próximos Passos
 
-- **Versão 2**: Incluir módulos de Imputação Múltipla (MICE) e modelagem robusta com survey design.
-- **Integração**: Merge com DATASUS (SIH/SIA) e SISAB por codmun para medir oferta de serviços.
-- **Benchmarking Temporal**: Incorporar PNS-2013 para análise de mudança 2013→2019.
-- **Validação de Especialistas**: Rodada Delphi para definir pesos finais do índice.
+- **Dashboard Interativo**: Interface web para exploração dos dados
+- **Análises Longitudinais**: Comparação com PNS 2013 e futuras
+- **Integração com Outros Dados**: Merge com DATASUS, Censo, etc.
+- **Modelo Preditivo Aprimorado**: Deep Learning para identificação de risco
+- **Validação com Especialistas**: Painel Delphi para pesos do índice
 
 ## Contato e Citação
 
-**Equipe**: [Lista de integrantes do grupo / Email de contato]
+**Autor**: Gabriel Braga (gaab-braga)
+**Repositório**: https://github.com/gaab-braga/researchEnvelhecimentoAtivo
+**Data**: Outubro 2025
+**Licença**: MIT
 
-**Versão**: v0.1
-
-**Data da Última Atualização**: YYYY-MM-DD
-
-**Como Citar**: Documento técnico em preparação. Por enquanto, citar IBGE (PNS-2019) como fonte primária dos microdados.
-
-## Apêndice: Pseudocódigo
-
-Exemplo de fórmula para `health_score`:
-
-```python
-# 1. Padronizar componentes (Z-score)
-# Assumindo que autoav 1=Péssimo, 5=Excelente (corrigir se necessário)
-autoav_z = (autoav - mean(autoav)) / sd(autoav)
-multimorb_z = (multimorbidity_count - mean(multimorbidity_count)) / sd(multimorbidity_count)
-functional_z = (functional_score - mean(functional_score)) / sd(functional_score)
-
-# 2. Score bruto ponderado (pesos w1, w2, w3 a validar)
-# Multiplicar por -1 componentes onde "maior" é "pior"
-# Se autoav (5=Excelente) e functional_score (1=Melhor) já estão na direção correta:
-health_score_raw = w1 * (autoav_z) + w2 * (-multimorb_z) + w3 * (functional_z)
-
-# 3. Normalizar para 0-1 (Min-Max Scaling)
-health_score = (health_score_raw - min(health_score_raw)) / (max(health_score_raw) - min(health_score_raw))
+**Como citar**:
 ```
+Braga, G. (2025). Índice Brasileiro de Envelhecimento Ativo (AAI-BR): Análise da PNS 2019.
+GitHub repository: https://github.com/gaab-braga/researchEnvelhecimentoAtivo
+```
+
+---
+
+*Este projeto contribui para o debate sobre políticas públicas para o envelhecimento populacional no Brasil, fornecendo evidências científicas para decisões informadas.*

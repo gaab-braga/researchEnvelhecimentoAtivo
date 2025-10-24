@@ -1,10 +1,16 @@
 # Arquivos grandes e dados brutos
 data/raw/PNS_2019.txt
 data/raw/dicionario_PNS_microdados_2019.xls
+data/raw/input_PNS_2019.sas
+data/raw/metadados_core.txt
 
-# Dados processados (gerados pelo script)
+# Dados processados (exceto os permitidos)
 data/processed/*.csv
+!data/processed/pns_2019_pandas.csv
 data/processed/*.json
+!data/processed/pns_mappings.json
+data/processed/*.txt
+data/processed/BR_Municipios_2019.*
 
 # Ambiente Python
 __pycache__/
