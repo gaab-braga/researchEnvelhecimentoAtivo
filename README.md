@@ -330,5 +330,3 @@ health_score_raw = w1 * (autoav_z) + w2 * (-multimorb_z) + w3 * (functional_z)
 # 3. Normalizar para 0-1 (Min-Max Scaling)
 health_score = (health_score_raw - min(health_score_raw)) / (max(health_score_raw) - min(health_score_raw))
 ```
-
-**Recomendação**: Testar w1,w2,w3 com pesos iguais (1,1,1) como baseline, rodar PCA para comparar pesos data-driven e, finalmente, pedir validação de especialistas.
