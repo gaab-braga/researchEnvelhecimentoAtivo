@@ -1,0 +1,6 @@
+Feature,SHAP_Importance
+idade,0.07321855549515972
+renda_percapita,0.03370067862390215
+num_medicamentos,0.013503392618572222
+anos_estudo,0.012367939718955974
+atividade_fisica,0.01143015302416529
